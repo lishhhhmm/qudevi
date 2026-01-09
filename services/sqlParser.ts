@@ -138,19 +138,32 @@ function analyzeScope(
 ) {
     const normalize = (s: string) => s.toUpperCase();
 
-    // Regex to capture JOIN/FROM clauses
-    // Matches: KEYWORD table_name alias?
-    const regex = /\b(FROM|JOIN|INNER JOIN|LEFT JOIN|RIGHT JOIN|FULL OUTER JOIN|CROSS JOIN)\s+([a-zA-Z0-9_$.]+)(?:\s+(?:AS\s+)?([a-zA-Z0-9_$]+))?/gi;
+    // Regex to capture JOIN/FROM clauses - just the keyword and table name
+    // We'll handle alias detection separately below
+    const regex = /(FULL\s+OUTER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|INNER\s+JOIN|CROSS\s+JOIN|FROM|JOIN)\s+([a-zA-Z0-9_$]+(?:\.[a-zA-Z0-9_$]+)?)/gi;
     
-    const keywords = new Set(['ON', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'JOIN', 'UNION', 'SELECT', 'WITH', 'LIMIT', 'OFFSET']);
+    const keywords = new Set(['ON', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'FULL', 'CROSS', 'JOIN', 'UNION', 'SELECT', 'WITH', 'LIMIT', 'OFFSET']);
     
     let match;
     const scopeAliases: {[key: string]: string} = {}; 
     
+    // Reset regex state before looping
+    regex.lastIndex = 0;
+    
     while ((match = regex.exec(scopeSql)) !== null) {
         const type = match[1].toUpperCase();
         let tableName = match[2];
-        let potentialAlias = match[3];
+        let potentialAlias: string | undefined = undefined;
+        
+        // Extract what comes after the table name in the original SQL
+        const matchEnd = match.index + match[0].length;
+        const afterTable = scopeSql.slice(matchEnd).trimLeft();
+        
+        // Check if the next token is an identifier (potential alias)
+        const aliasMatch = afterTable.match(/^([a-zA-Z_$][a-zA-Z0-9_$]*)\s/);
+        if (aliasMatch) {
+            potentialAlias = aliasMatch[1];
+        }
 
         if (keywords.has(tableName.toUpperCase())) continue;
         
@@ -181,23 +194,22 @@ function analyzeScope(
         let locEnd = 0;
         
         if (potentialAlias) {
-             // Alias is in group 3.
-             // We need to find its position in the full match string
-             // match[0] is the full string "JOIN table alias"
-             // This is a bit tricky because regex groups don't give indices directly in JS without /d flag (ES2022)
-             // We'll search for the alias string starting after the table name in match[0]
-             const fullMatch = match[0];
-             const tableIndexInMatch = fullMatch.indexOf(tableName); // simplistic
-             // Start searching for alias after table
-             const aliasIndexInMatch = fullMatch.indexOf(potentialAlias, tableIndexInMatch + tableName.length);
-             
-             locStart = offset + match.index + aliasIndexInMatch;
-             locEnd = locStart + potentialAlias.length;
+             // Search for the alias in the SQL starting from after the match
+             const matchEnd = offset + match.index + match[0].length;
+             const aliasPos = scopeSql.indexOf(potentialAlias, match.index + match[0].length);
+             if (aliasPos !== -1) {
+                 locStart = offset + aliasPos;
+                 locEnd = locStart + potentialAlias.length;
+             } else {
+                 // Fallback: highlight the table name
+                 const tablePos = scopeSql.indexOf(tableName, match.index);
+                 locStart = offset + tablePos;
+                 locEnd = locStart + tableName.length;
+             }
         } else {
-             // Use table name location
-             const fullMatch = match[0];
-             const tableIndexInMatch = fullMatch.indexOf(tableName);
-             locStart = offset + match.index + tableIndexInMatch;
+             // Use table name location - find it in the match
+             const tablePos = match[0].indexOf(tableName);
+             locStart = offset + match.index + tablePos;
              locEnd = locStart + tableName.length;
         }
 
