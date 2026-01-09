@@ -25,6 +25,7 @@ export const SqlInput: React.FC<SqlInputProps> = ({
   onSelectNode
 }) => {
   const [isEditing, setIsEditing] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   // Auto-switch to view mode when loading finishes (if nodes exist)
   useEffect(() => {
@@ -36,6 +37,12 @@ export const SqlInput: React.FC<SqlInputProps> = ({
   const handleAnalyzeClick = () => {
     onAnalyze();
     // setIsEditing(false) is handled by effect when data arrives
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   // Generate highlighted text segments
@@ -131,6 +138,20 @@ export const SqlInput: React.FC<SqlInputProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
+            <button 
+                onClick={handleCopy}
+                disabled={!value.trim()}
+                className={`h-[34px] px-3 flex items-center justify-center text-xs font-bold rounded-lg border transition-colors shadow-sm tracking-wider ${
+                  !value.trim()
+                    ? 'bg-slate-200 dark:bg-[#1e4e4a] text-slate-400 dark:text-slate-500 cursor-not-allowed border-slate-300 dark:border-[#2d6a62]'
+                    : copied
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white dark:bg-[#113835] hover:bg-slate-50 dark:hover:bg-[#1e4e4a] text-slate-600 dark:text-slate-300 border-slate-300 dark:border-[#2d6a62]'
+                }`}
+                title="Copy query to clipboard"
+            >
+                {copied ? '✓ COPIED' : 'COPY'}
+            </button>
             {!isEditing ? (
                  <button 
                     onClick={() => setIsEditing(true)}
