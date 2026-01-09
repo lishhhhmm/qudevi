@@ -1,0 +1,5 @@
+{
+  "name": "SQL Dependency Visualizer",
+  "description": "Visualizes the relationships, joins, and dependencies within complex Oracle SQL queries using AI-powered analysis.",
+  "requestFramePermissions": []
+}
