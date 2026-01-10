@@ -6,71 +6,71 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  name: Deploy to GitHub Pages
 
-concurrency:
-  group: 'pages'
-  cancel-in-progress: false
+  on:
+    push:
+      branches: ['main', 'master']
+    workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  permissions:
+    contents: read
+    pages: write
+    id-token: write
 
-      name: Deploy to GitHub Pages
+  concurrency:
+    group: 'pages'
+    cancel-in-progress: false
 
-      on:
-        push:
-          branches:
-            - main
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
 
-        # Allows you to run this workflow manually from the Actions tab
-        workflow_dispatch:
+        - name: Setup Node.js
+          uses: actions/setup-node@v4
+          with:
+            node-version: '20'
 
-      # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
-      permissions:
-        contents: read
-        pages: write
-        id-token: write
+        - name: Install dependencies
+          run: npm install
 
-      # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-      # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
-      concurrency:
-        group: "pages"
-        cancel-in-progress: false
+        - name: Build
+          run: npm run build
+          env:
+            VITE_OSM_CLIENT_ID: ${{ secrets.VITE_OSM_CLIENT_ID }}
+            VITE_OSM_CLIENT_SECRET: ${{ secrets.VITE_OSM_CLIENT_SECRET }}
+            GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'dummy_key_for_build' }}
+            # BASE_PATH: '/your-repo-name/'
 
-      jobs:
-        build:
-          runs-on: ubuntu-latest
-    
-          steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+        - name: Copy 404.html for SPA routing
+          run: |
+            if [ -f public/404.html ]; then
+              cp public/404.html dist/404.html
+            else
+              echo '<!doctype html><meta charset="utf-8"><title>404</title><meta name="viewport" content="width=device-width,initial-scale=1"><h1>Not Found</h1>' > dist/404.html
+            fi
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                node-version: '20'
+        - name: Setup Pages
+          uses: actions/configure-pages@v4
 
-            - name: Install dependencies
-              run: npm install
+        - name: Upload artifact
+          uses: actions/upload-pages-artifact@v3
+          with:
+            path: './dist'
 
-            - name: Build
-              run: npm run build
-              env:
-                # Optional secrets (leave empty if not used)
-                VITE_OSM_CLIENT_ID: ${{ secrets.VITE_OSM_CLIENT_ID }}
-                VITE_OSM_CLIENT_SECRET: ${{ secrets.VITE_OSM_CLIENT_SECRET }}
-                GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'dummy_key_for_build' }}
-                # Optional: Set BASE_PATH if NOT using custom domain
-                # BASE_PATH: '/your-repo-name/'
-
-            - name: Copy 404.html for SPA routing
-              run: |
-                if [ -f public/404.html ]; then
+    deploy:
+      environment:
+        name: github-pages
+        url: ${{ steps.deployment.outputs.page_url }}
+      runs-on: ubuntu-latest
+      needs: build
+      steps:
+        - name: Deploy to GitHub Pages
+          id: deployment
+          uses: actions/deploy-pages@v4
                   cp public/404.html dist/404.html
                 else
                   echo '<!doctype html><meta charset="utf-8"><title>404</title><meta name="viewport" content="width=device-width,initial-scale=1"><h1>Not Found</h1>' > dist/404.html
